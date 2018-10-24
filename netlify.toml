@@ -1,0 +1,26 @@
+[build]
+  publish = "dist/"
+  command = "yarn prod && yarn sw"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "http://shortercat.netlify.com/*"
+  to = "https:///shortercatechism.app/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://shortercat.netlify.com/*"
+  to = "https:///shortercatechism.app/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://shortercatechism.app/*"
+  to = "https:///shortercatechism.app/:splat"
+  status = 301
+  force = true

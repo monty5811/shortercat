@@ -1,0 +1,21 @@
+{
+  "name": "Westminster Shorter Catechism",
+  "short_name": "Shorter Catechism",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#32474F",
+  "theme_color": "#138FA1",
+  "description": "Wesminster Shorter Catechism",
+  "icons": [
+        {
+            "src": "./icons/android-chrome-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "./icons/android-chrome-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

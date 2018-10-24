@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#138FA1">
+  <meta name="description" content="Westminster Shorter Catechism App">
+  <link rel="manifest" href="/src/manifest.webmanifest">
+  <link rel="preload" href="https://fonts.googleapis.com/css?family=Montserrat" rel="stylesheet" as="font">
+  <link rel="apple-touch-icon" sizes="180x180" href="/src/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/src/icons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/src/icons/favicon-16x16.png">
+  <meta name="theme-color" content="#138fa1">
+</head>
+<body>
+  <div id="elm">
+  <noscript>
+    I'm afraid we need javaScript to run...
+  </noscript>
+  </div>
+  <script src="./src/index.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(function (registration) {
+          console.log('Service Worker registration successful with scope: ', registration.scope)
+        })
+        .catch(function (err) {
+          console.log('Service Worker registration failed: ', err)
+        })
+    }
+  </script>
+</body>
+</html>

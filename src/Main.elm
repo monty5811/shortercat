@@ -436,13 +436,7 @@ catQ { toggles } ( num, { question, answer } ) =
             [ El.width El.fill
             , El.spacingXY 0 P.lg
             ]
-            [ El.paragraph
-                [ Font.justify
-                , El.spacing P.sm
-                ]
-              <|
-                answerView bg toggleState answer
-            ]
+            [ El.paragraph [ Font.justify ] (answerView bg toggleState answer) ]
         , El.row
             [ El.width El.fill
             , El.alignBottom

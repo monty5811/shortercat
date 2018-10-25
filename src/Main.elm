@@ -113,8 +113,15 @@ update msg model =
                         |> goToRoute (WSC <| Just num)
 
         UrlChange url ->
+            let
+                newRoute =
+                    toRoute url
+            in
             ( { model
-                | route = toRoute url
+                | route = newRoute
+                , selectRaw =
+                    routeToSelectRaw newRoute
+                        |> Maybe.withDefault model.selectRaw
                 , toggles = Dict.empty
               }
             , Cmd.none
@@ -136,6 +143,16 @@ update msg model =
             ( { model | device = El.classifyDevice { width = width, height = height } }
             , Cmd.none
             )
+
+
+routeToSelectRaw : Route -> Maybe String
+routeToSelectRaw route =
+    case route of
+        WSC (Just num) ->
+            Just (String.fromInt num)
+
+        _ ->
+            Nothing
 
 
 goToRoute : Route -> ( Model, Cmd msg ) -> ( Model, Cmd msg )

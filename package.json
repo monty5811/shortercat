@@ -14,7 +14,8 @@
     "dev": "parcel serve -p 4001 --hmr-port 9002 index.html",
     "prod": "parcel build index.html && touch dist/robots.txt",
     "sw": "workbox generateSW",
-    "format:elm": "elm-format --yes src/"
+    "format:elm": "elm-format --yes src/",
+    "ext": "rm -rf dist_ext && cp -R ext dist_ext && cp -R src/icons/* dist_ext"
   },
   "devDependencies": {
     "node-elm-compiler": "^5.0.1",

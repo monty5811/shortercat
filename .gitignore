@@ -1,5 +1,7 @@
 dist/
+dist_ext/
 node_modules/
 elm-stuff/
 .cache/
 tags
+*.log

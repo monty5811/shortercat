@@ -329,6 +329,9 @@ selectQ model =
         , Font.color P.red
         , Border.color P.lightBlue
         , El.focused [ Border.color P.red ]
+        , El.htmlAttribute <| Html.Attributes.type_ "number"
+        , El.htmlAttribute <| Html.Attributes.min "1"
+        , El.htmlAttribute <| Html.Attributes.max "127"
         ]
         { onChange = SelectTextUpdated
         , text = model.selectRaw

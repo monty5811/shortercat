@@ -1,5 +1,6 @@
 module Route exposing (Route(..), fromRoute, toRoute)
 
+import Layout exposing (Layout, layoutToQuery)
 import Url
 import Url.Builder exposing (absolute)
 import Url.Parser exposing ((</>), int, map, oneOf, s, top)
@@ -8,6 +9,11 @@ import Url.Parser exposing ((</>), int, map, oneOf, s, top)
 type Route
     = About
     | WSC (Maybe Int)
+
+
+toRoute : Url.Url -> Route
+toRoute url =
+    Maybe.withDefault (WSC Nothing) (Url.Parser.parse route url)
 
 
 route : Url.Parser.Parser (Route -> a) a
@@ -19,19 +25,14 @@ route =
         ]
 
 
-toRoute : Url.Url -> Route
-toRoute url =
-    Maybe.withDefault (WSC Nothing) (Url.Parser.parse route url)
-
-
-fromRoute : Route -> String
-fromRoute route_ =
+fromRoute : Layout -> Route -> String
+fromRoute layout route_ =
     case route_ of
         About ->
-            absolute [ "about" ] []
+            absolute [ "about" ] (layoutToQuery layout)
 
         WSC (Just num) ->
-            absolute [ String.fromInt num ] []
+            absolute [ String.fromInt num ] (layoutToQuery layout)
 
         WSC Nothing ->
-            absolute [] []
+            absolute [] (layoutToQuery layout)

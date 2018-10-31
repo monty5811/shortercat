@@ -14,6 +14,7 @@ import Element.Input as Input
 import Element.Region as Region
 import Html exposing (Html)
 import Html.Attributes
+import Layout exposing (Layout(..), toLayout)
 import Palette as P
 import Route exposing (Route(..), fromRoute, toRoute)
 import Url
@@ -36,6 +37,7 @@ init flags url key =
     ( { navKey = key
       , device = El.classifyDevice { width = flags.width, height = flags.height }
       , route = toRoute url
+      , layout = toLayout url
       , toggles = Dict.empty
       , selectRaw = ""
       , wsc = WSC.data
@@ -65,6 +67,7 @@ type alias Model =
     { navKey : Nav.Key
     , device : El.Device
     , route : Route
+    , layout : Layout
     , toggles : Dict Int ToggleState
     , selectRaw : String
     , wsc : List ( Int, WSC.Question )
@@ -160,7 +163,7 @@ goToRoute route ( model, cmd ) =
     ( model
     , Cmd.batch
         [ cmd
-        , Nav.pushUrl model.navKey (fromRoute route)
+        , Nav.pushUrl model.navKey (fromRoute model.layout route)
         ]
     )
 
@@ -193,34 +196,39 @@ body model =
 
 
 navbar : Model -> El.Element msg
-navbar { device } =
-    El.row
-        [ Region.navigation
-        , El.alignTop
-        , El.width El.fill
-        , El.padding P.lg
-        , Background.color P.darkBlue
-        , case device.class of
-            El.Phone ->
-                Font.size P.lg
+navbar { device, layout } =
+    case layout of
+        Extension ->
+            El.el [] <| El.text ""
 
-            El.Tablet ->
-                Font.size P.lg
+        Browser ->
+            El.row
+                [ Region.navigation
+                , El.alignTop
+                , El.width El.fill
+                , El.padding P.lg
+                , Background.color P.darkBlue
+                , case device.class of
+                    El.Phone ->
+                        Font.size P.lg
 
-            El.Desktop ->
-                Font.size P.xl
+                    El.Tablet ->
+                        Font.size P.lg
 
-            El.BigDesktop ->
-                Font.size P.xl
-        , Font.color P.red
-        , Font.italic
-        , Font.variant Font.ligatures
-        ]
-        [ El.link [ El.centerX, Font.bold ]
-            { label = El.text "Westminster Shorter Catechism", url = fromRoute <| WSC Nothing }
-        , El.link [ El.alignRight ]
-            { label = El.text "About", url = fromRoute About }
-        ]
+                    El.Desktop ->
+                        Font.size P.xl
+
+                    El.BigDesktop ->
+                        Font.size P.xl
+                , Font.color P.red
+                , Font.italic
+                , Font.variant Font.ligatures
+                ]
+                [ El.link [ El.centerX, Font.bold ]
+                    { label = El.text "Westminster Shorter Catechism", url = fromRoute layout <| WSC Nothing }
+                , El.link [ El.alignRight ]
+                    { label = El.text "About", url = fromRoute layout About }
+                ]
 
 
 mainView : Model -> El.Element Msg

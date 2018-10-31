@@ -1,6 +1,10 @@
-[build]
-  publish = "dist/"
-  command = "yarn prod && yarn sw"
+[Settings]
+  ID = "6f25da95-187c-4416-a36b-e5c83092fa73"
+
+[Build]
+  Publish = "dist/"
+  Command = "yarn prod && yarn sw"
+  Functions = ""
 
 [[redirects]]
   from = "/*"

@@ -224,7 +224,7 @@ navbar { device, layout } =
                 , Font.italic
                 , Font.variant Font.ligatures
                 ]
-                [ El.link [ El.centerX, Font.bold ]
+                [ El.link [ Region.heading 1, El.centerX, Font.bold ]
                     { label = El.text "Westminster Shorter Catechism", url = fromRoute layout <| WSC Nothing }
                 , El.link [ El.alignRight ]
                     { label = El.text "About", url = fromRoute layout About }

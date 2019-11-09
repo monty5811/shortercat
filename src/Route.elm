@@ -1,4 +1,4 @@
-module Route exposing (Route(..), fromRoute, toRoute)
+module Route exposing (Route(..), fromRoute, toRoute, toTitle)
 
 import Layout exposing (Layout, layoutToQuery)
 import Url
@@ -9,6 +9,7 @@ import Url.Parser exposing ((</>), int, map, oneOf, s, top)
 type Route
     = About
     | WSC (Maybe Int)
+    | WLC (Maybe Int)
 
 
 toRoute : Url.Url -> Route
@@ -20,7 +21,10 @@ route : Url.Parser.Parser (Route -> a) a
 route =
     oneOf
         [ map (WSC Nothing) top
-        , map (WSC << Just) int
+        , map (WSC Nothing) (s "wsc")
+        , map (WSC << Just) (s "wsc" </> int)
+        , map (WLC Nothing) (s "wlc")
+        , map (WLC << Just) (s "wlc" </> int)
         , map About (s "about")
         ]
 
@@ -32,7 +36,26 @@ fromRoute layout route_ =
             absolute [ "about" ] (layoutToQuery layout)
 
         WSC (Just num) ->
-            absolute [ String.fromInt num ] (layoutToQuery layout)
+            absolute [ "wsc", String.fromInt num ] (layoutToQuery layout)
 
         WSC Nothing ->
             absolute [] (layoutToQuery layout)
+
+        WLC (Just num) ->
+            absolute [ "wlc", String.fromInt num ] (layoutToQuery layout)
+
+        WLC Nothing ->
+            absolute [ "wlc" ] (layoutToQuery layout)
+
+
+toTitle : Route -> String
+toTitle route_ =
+    case route_ of
+        WSC _ ->
+            "Westminster Shorter Catechism"
+
+        About ->
+            "Westminster Shorter Catechism"
+
+        WLC _ ->
+            "Westminster Larger Catechism"

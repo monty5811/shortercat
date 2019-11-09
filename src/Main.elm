@@ -1,26 +1,21 @@
 module Main exposing (main)
 
 import Browser
-import Browser.Events
 import Browser.Navigation as Nav
-import Data.WSC as WSC
+import Data exposing (..)
 import Dict exposing (Dict)
-import Element as El
-import Element.Background as Background
-import Element.Border as Border
-import Element.Events as Events
-import Element.Font as Font
-import Element.Input as Input
-import Element.Region as Region
 import Html exposing (Html)
-import Html.Attributes
+import Html.Attributes as A
+import Html.Events as E
+import Http
 import Layout exposing (Layout(..), toLayout)
-import Palette as P
+import RemoteData as RD exposing (WebData)
 import Route exposing (Route(..), fromRoute, toRoute)
+import TW
 import Url
 
 
-main : Program Flags Model Msg
+main : Program () Model Msg
 main =
     Browser.application
         { init = init
@@ -32,29 +27,34 @@ main =
         }
 
 
-init : Flags -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init flags url key =
+init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init _ url key =
     ( { navKey = key
-      , device = El.classifyDevice { width = flags.width, height = flags.height }
       , route = toRoute url
       , layout = toLayout url
       , toggles = Dict.empty
       , selectRaw = ""
-      , wsc = WSC.data
+      , catechisms = notAsked
+      , showPicker = False
       }
-    , Cmd.none
+    , Cmd.batch
+        [ Cmd.map ReceiveWSC (RD.sendRequest getWSC)
+        , Cmd.map ReceiveWLC (RD.sendRequest getWLC)
+        ]
     )
 
 
 type Msg
     = ClickedLink Browser.UrlRequest
     | UrlChange Url.Url
-    | WindowResize Int Int
     | SelectTextUpdated String
     | ShowFullAnswer Int
     | HideFullAnswer Int
     | ShowLetters Int
     | HideLetters Int
+    | ReceiveWSC (RD.WebData Catechism)
+    | ReceiveWLC (RD.WebData Catechism)
+    | TogglePicker
 
 
 type ToggleState
@@ -63,14 +63,18 @@ type ToggleState
     | FullAnswer
 
 
+type alias Toggles =
+    Dict Int ToggleState
+
+
 type alias Model =
     { navKey : Nav.Key
-    , device : El.Device
     , route : Route
     , layout : Layout
-    , toggles : Dict Int ToggleState
+    , toggles : Toggles
     , selectRaw : String
-    , wsc : List ( Int, WSC.Question )
+    , catechisms : Catechisms
+    , showPicker : Bool
     }
 
 
@@ -103,17 +107,17 @@ update msg model =
 
         SelectTextUpdated "" ->
             ( { model | selectRaw = "" }, Cmd.none )
-                |> goToRoute (WSC Nothing)
+                |> goToRoute (getToRoute model.route Nothing)
 
         SelectTextUpdated raw ->
             case String.toInt raw of
                 Nothing ->
                     ( { model | selectRaw = raw }, Cmd.none )
-                        |> goToRoute (WSC Nothing)
+                        |> goToRoute (getToRoute model.route Nothing)
 
                 Just num ->
                     ( { model | selectRaw = raw }, Cmd.none )
-                        |> goToRoute (WSC <| Just num)
+                        |> goToRoute (getToRoute model.route <| Just num)
 
         UrlChange url ->
             let
@@ -123,9 +127,10 @@ update msg model =
             ( { model
                 | route = newRoute
                 , selectRaw =
-                    routeToSelectRaw newRoute
+                    routeToMaybeSelected newRoute
                         |> Maybe.withDefault model.selectRaw
                 , toggles = Dict.empty
+                , showPicker = False
               }
             , Cmd.none
             )
@@ -142,16 +147,23 @@ update msg model =
                     , Nav.load url
                     )
 
-        WindowResize width height ->
-            ( { model | device = El.classifyDevice { width = width, height = height } }
-            , Cmd.none
-            )
+        ReceiveWSC wdWSC ->
+            ( { model | catechisms = updateWSC wdWSC model.catechisms }, Cmd.none )
+
+        ReceiveWLC wdWLC ->
+            ( { model | catechisms = updateWLC wdWLC model.catechisms }, Cmd.none )
+
+        TogglePicker ->
+            ( { model | showPicker = not model.showPicker }, Cmd.none )
 
 
-routeToSelectRaw : Route -> Maybe String
-routeToSelectRaw route =
+routeToMaybeSelected : Route -> Maybe String
+routeToMaybeSelected route =
     case route of
         WSC (Just num) ->
+            Just (String.fromInt num)
+
+        WLC (Just num) ->
             Just (String.fromInt num)
 
         _ ->
@@ -168,223 +180,397 @@ goToRoute route ( model, cmd ) =
     )
 
 
+getToRoute : Route -> (Maybe Int -> Route)
+getToRoute route =
+    case route of
+        About ->
+            \_ -> About
+
+        WSC _ ->
+            WSC
+
+        WLC _ ->
+            WLC
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.none
+
+
 view : Model -> Browser.Document Msg
 view model =
-    { title = "Westminster Shorter Catechism"
+    { title = Route.toTitle model.route
     , body = body model
     }
 
 
 body : Model -> List (Html Msg)
 body model =
-    [ El.layout
-        [ El.width El.fill
-        , El.height El.fill
-        , El.centerX
-        , El.centerY
-        , El.clipY
-        , El.scrollbarY
-        , Font.family [ Font.typeface "Montserrat" ]
-        , Background.color P.blue
+    [ Html.div
+        [ TW.w_full
+        , TW.min_h_screen
+        , TW.bg_gray_200
+        , TW.font_sans
         ]
       <|
-        El.column [ El.width El.fill ]
+        [ Html.div []
             [ navbar model
-            , mainView model
+            , case mainView model of
+                RD.NotAsked ->
+                    loader
+
+                RD.Loading ->
+                    loader
+
+                RD.Failure error ->
+                    failure error
+
+                RD.Success content ->
+                    content
             ]
+        ]
     ]
 
 
-navbar : Model -> El.Element msg
-navbar { device, layout } =
+navbar : Model -> Html Msg
+navbar { layout, route } =
     case layout of
         Extension ->
-            El.el [] <| El.text ""
+            Html.text ""
 
         Browser ->
-            El.row
-                [ Region.navigation
-                , El.alignTop
-                , El.width El.fill
-                , El.padding P.lg
-                , Background.color P.darkBlue
-                , case device.class of
-                    El.Phone ->
-                        Font.size P.lg
-
-                    El.Tablet ->
-                        Font.size P.lg
-
-                    El.Desktop ->
-                        Font.size P.xl
-
-                    El.BigDesktop ->
-                        Font.size P.xl
-                , Font.color P.red
-                , Font.italic
-                , Font.variant Font.ligatures
-                ]
-                [ El.link [ Region.heading 1, El.centerX, Font.bold ]
-                    { label = El.text "Westminster Shorter Catechism", url = fromRoute layout <| WSC Nothing }
-                , El.link [ El.alignRight ]
-                    { label = El.text "About", url = fromRoute layout About }
+            Html.div [ TW.font_semibold, TW.bg_white, TW.shadow, TW.w_full, TW.md_px_8, TW.mb_8 ]
+                [ Html.nav [ TW.relative, TW.flex, TW.flex_wrap, TW.items_center, TW.justify_between, TW.md_py_4, TW.h_16, TW.px_2 ]
+                    [ Html.div [] [ Html.text <| Route.toTitle route ]
+                    , Html.a [ A.href <| fromRoute layout About ] [ Html.text "About" ]
+                    ]
                 ]
 
 
-mainView : Model -> El.Element Msg
+mainView : Model -> RD.WebData (Html Msg)
 mainView model =
-    El.el
-        [ Region.mainContent
-        , El.spacing P.xxl
-        , El.padding P.xxl
-        , El.centerX
-        , El.width El.fill
-        ]
-    <|
+    if model.showPicker then
+        RD.Success <| picker model.layout
+
+    else
+        let
+            qaList_ =
+                qaList
+                    model.selectRaw
+                    model.toggles
+        in
         case model.route of
             About ->
                 about model
+                    |> RD.Success
 
             WSC maybeNum ->
-                wscList maybeNum model
+                RD.map (qaList_ maybeNum) model.catechisms.wsc
+
+            WLC maybeNum ->
+                RD.map (qaList_ maybeNum) model.catechisms.wlc
 
 
-about : Model -> El.Element msg
-about model =
-    El.textColumn
-        [ Region.mainContent
-        , Font.color P.white
-        , El.spacing P.lg
-        , El.padding P.xl
-        , El.width El.fill
-        , Background.color P.darkBlue
-        , Border.solid
-        , Border.color P.red
-        , Border.width 1
-        , El.centerX
-        , El.width <|
-            case model.device.class of
-                El.Phone ->
-                    El.fill
 
-                El.Tablet ->
-                    El.fill
+-- Catechism View
 
-                El.Desktop ->
-                    El.px 1000
 
-                El.BigDesktop ->
-                    El.px 1000
-        ]
-        [ El.paragraph [] [ header "This app" ]
-        , listItem [ El.text "• Simple" ]
-        , listItem [ El.text "• Fast" ]
-        , listItem [ El.text "• Works Offline" ]
-        , listItem [ El.text "• Mobile friendly" ]
-        , listItem [ El.text "• ", newTabLink [] { label = El.text "Open Source", url = "https://github.com/monty5811/shortercat" } ]
-        , listItem [ El.text "• ", newTabLink [] { label = El.text "Twitter", url = "https://twitter.com/ShorterCatApp" } ]
-        , El.paragraph [] [ header "Westminster Shorter Catechism" ]
-        , listItem
-            [ El.text
-                "• The Westminster Shorter Catechism was completed in 1647 by the Westminster Assembly (the same body that wrote the Westminster Confession of Faith. It is part of the confessional standards of many Presbyterian churches"
+selectQ : Catechism -> String -> Html Msg
+selectQ catechism selectRaw =
+    Html.label [ TW.block, TW.mx_auto, TW.w_3over5, TW.mb_12 ]
+        [ Html.span [ TW.font_medium, TW.text_lg, TW.text_gray_800, TW.hidden ] [ Html.text "Select a question" ]
+        , Html.input
+            [ E.onInput SelectTextUpdated
+            , A.type_ "number"
+            , A.min "1"
+            , A.max <| String.fromInt <| List.length catechism
+            , A.value selectRaw
+            , A.placeholder "Type to select a question..."
+            , TW.form_input
+            , TW.text_lg
+            , TW.lg_text_5xl
+            , TW.rounded
+            , TW.rounded_lg
+            , TW.mt_1
+            , TW.block
+            , TW.w_full
             ]
-        , listItem [ El.text "• ", newTabLink [] { label = El.text "More resources", url = "https://www.monergism.com/topics/creeds-and-confessions/westminster-assembly/shorter-catechism" } ]
-        , listItem [ El.text "• ", newTabLink [] { label = El.text "Buy a hard copy", url = "https://amzn.to/2JdHUa1" } ]
+            []
         ]
 
 
-listItem : List (El.Element msg) -> El.Element msg
-listItem elems =
-    El.paragraph
-        [ El.paddingEach
-            { top = 0
-            , bottom = 0
-            , right = 0
-            , left = P.lg
-            }
-        ]
-        elems
-
-
-newTabLink : List (El.Attribute msg) -> { url : String, label : El.Element msg } -> El.Element msg
-newTabLink attrs link =
-    El.newTabLink (Font.underline :: attrs) link
-
-
-header : String -> El.Element msg
-header text =
-    El.el
-        [ Region.heading 1
-        , Font.size P.xl
-        , Font.bold
-        ]
-        (El.text text)
-
-
-selectQ : Model -> El.Element Msg
-selectQ model =
-    Input.text
-        [ El.width El.fill
-        , Background.color P.darkBlue
-        , Font.color P.red
-        , Border.color P.lightBlue
-        , El.focused [ Border.color P.red ]
-        , El.htmlAttribute <| Html.Attributes.type_ "number"
-        , El.htmlAttribute <| Html.Attributes.min "1"
-        , El.htmlAttribute <| Html.Attributes.max "127"
-        ]
-        { onChange = SelectTextUpdated
-        , text = model.selectRaw
-        , placeholder = Just (Input.placeholder [ Font.color P.white ] <| El.text "Type to select a question...")
-        , label = Input.labelHidden "Select a question"
+qaList : String -> Toggles -> Maybe Int -> Catechism -> Html Msg
+qaList selectRaw toggles maybeSelectedNum catechism =
+    qaListHelp
+        { maybeSelectedNum = maybeSelectedNum
+        , selectRaw = selectRaw
+        , toggles = toggles
+        , catechism = catechism
         }
 
 
-wscList : Maybe Int -> Model -> El.Element Msg
-wscList maybeNum model =
-    case model.device.class of
-        El.Phone ->
-            wscListHelp maybeNum El.fill 1 model
-
-        El.Tablet ->
-            wscListHelp maybeNum El.fill 2 model
-
-        El.Desktop ->
-            wscListHelp maybeNum (El.px 1000) 3 model
-
-        El.BigDesktop ->
-            wscListHelp maybeNum (El.px 1000) 3 model
-
-
-wscListHelp : Maybe Int -> El.Length -> Int -> Model -> El.Element Msg
-wscListHelp maybeNum width numPerRow model =
-    El.column
-        [ El.width width
-        , El.centerX
-        , El.spacing P.md
+qaListHelp :
+    { maybeSelectedNum : Maybe Int
+    , selectRaw : String
+    , toggles : Toggles
+    , catechism : Catechism
+    }
+    -> Html Msg
+qaListHelp { maybeSelectedNum, selectRaw, toggles, catechism } =
+    Html.div
+        [ TW.mx_auto
+        , TW.container
+        , TW.px_4
         ]
-    <|
-        selectQ model
-            :: (model.wsc
-                    |> filterBySelected maybeNum
-                    |> groupInto numPerRow
-                    |> List.map (makeRow model)
-               )
+        [ Html.div []
+            [ selectQ catechism selectRaw
+            , Html.div
+                [ TW.flex
+                , TW.flex_wrap
+                , TW.neg_mx_2
+                ]
+              <|
+                (catechism
+                    |> filterBySelected maybeSelectedNum
+                    |> List.map (catQ toggles)
+                )
+            ]
+        ]
 
 
-filterBySelected : Maybe Int -> List ( Int, WSC.Question ) -> List ( Int, WSC.Question )
-filterBySelected maybeNum data =
-    case maybeNum of
-        Just num ->
-            List.filter (\( k, _ ) -> k == num) data
+catQ : Toggles -> ( Int, Question ) -> Html Msg
+catQ toggles ( num, { question, answer } ) =
+    let
+        toggleState =
+            Maybe.withDefault NoAnswer (Dict.get num toggles)
+    in
+    Html.div
+        [ TW.w_full
+        , TW.md_w_1over2
+        , TW.lg_w_1over3
+        , TW.xl_w_1over4
+        , TW.px_2
+        , TW.mb_4
+        ]
+        [ Html.div
+            [ TW.bg_white
+            , TW.h_full
+            , TW.flex
+            , TW.flex_col
+            , TW.justify_between
+            , TW.rounded
+            , TW.shadow
+            , TW.rounded_lg
+            , TW.border_blue_100
+            , TW.border
+            ]
+            [ Html.div [ TW.p_4 ]
+                [ Html.div
+                    [ TW.font_bold
+                    , TW.text_lg
+                    , TW.underline
+                    , TW.mb_2
+                    , A.style "font-variant-ligatures" "common-ligatures"
+                    ]
+                    [ Html.text <| "Q" ++ String.fromInt num ]
+                , Html.div [ TW.italic ]
+                    [ Html.text question ]
+                , Html.div
+                    [ TW.text_justify
+                    , TW.py_6
+                    , case toggleState of
+                        FullAnswer ->
+                            TW.select_auto
 
-        Nothing ->
-            data
+                        JustLetters ->
+                            TW.select_none
+
+                        NoAnswer ->
+                            TW.select_none
+                    ]
+                    (answerView toggleState answer)
+                ]
+            , Html.div [ TW.w_full, TW.flex, TW.pt_4 ] <|
+                case toggleState of
+                    NoAnswer ->
+                        [ button (ShowLetters num) "Letters"
+                        , button (ShowFullAnswer num) "Full Answer"
+                        ]
+
+                    JustLetters ->
+                        [ button (HideLetters num) "Hide"
+                        , button (ShowFullAnswer num) "Full Answer"
+                        ]
+
+                    FullAnswer ->
+                        [ button (ShowLetters num) "Letters"
+                        , button (HideFullAnswer num) "Hide"
+                        ]
+            ]
+        ]
 
 
-makeRow : Model -> List ( Int, WSC.Question ) -> El.Element Msg
-makeRow model qs =
-    El.row [ El.width El.fill ] <| List.map (catQ model) qs
+answerView : ToggleState -> String -> List (Html msg)
+answerView toggleState answer =
+    case toggleState of
+        NoAnswer ->
+            [ Html.div [ TW.text_white ] [ Html.text answer ] ]
+
+        JustLetters ->
+            answerViewHelp { first = TW.text_blue_800, rest = TW.text_white } answer
+
+        FullAnswer ->
+            answerViewHelp { first = TW.text_blue_800, rest = TW.text_blue_800 } answer
+
+
+answerViewHelp : { first : Html.Attribute msg, rest : Html.Attribute msg } -> String -> List (Html msg)
+answerViewHelp colours answer =
+    answer
+        |> String.split " "
+        |> List.map splitWords
+        |> List.concatMap (wordView colours)
+
+
+wordView : { first : Html.Attribute msg, rest : Html.Attribute msg } -> ( String, String ) -> List (Html msg)
+wordView colours ( letter, rest ) =
+    [ Html.span [ colours.first ] [ Html.text letter ]
+    , Html.span [ colours.rest ] [ Html.text rest ]
+    ]
+
+
+splitWords : String -> ( String, String )
+splitWords str =
+    ( String.left 1 str, String.dropLeft 1 str ++ " " )
+
+
+
+-- Picker
+
+
+picker : Layout -> Html msg
+picker layout =
+    Html.div
+        [ TW.h_full
+        , TW.w_screen
+        , TW.text_center
+        , TW.flex
+        , TW.flex_col
+        , TW.justify_center
+        , TW.font_medium
+        , TW.text_2xl
+        , TW.font_bold
+        ]
+        [ Html.a [ TW.my_16, A.href <| fromRoute layout <| WSC Nothing ] [ Html.text "Westminster Shorter Catechism" ]
+        , Html.a [ TW.my_16, A.href <| fromRoute layout <| WLC Nothing ] [ Html.text "Westminster Larger Catechism" ]
+        ]
+
+
+
+-- About
+
+
+about : Model -> Html msg
+about model =
+    Html.div
+        [ TW.container
+        , TW.max_w_lg
+        , TW.leading_normal
+        , TW.mx_auto
+        , TW.m_32
+        ]
+        [ Html.a [ TW.font_mono, A.href <| fromRoute model.layout <| WSC Nothing ] [ Html.text "Go Back" ]
+        , Html.h2 [ TW.mt_4, TW.font_bold, TW.text_lg ] [ header "This app" ]
+        , listItem [ Html.text " Simple" ]
+        , listItem [ Html.text " Fast" ]
+        , listItem [ Html.text " Works Offline" ]
+        , listItem [ Html.text " Mobile friendly" ]
+        , listItem [ Html.text " ", newTabLink [] { label = Html.text "Open Source", url = "https://github.com/monty5811/shortercat" } ]
+        , listItem [ Html.text " ", newTabLink [] { label = Html.text "Twitter", url = "https://twitter.com/ShorterCatApp" } ]
+        , Html.h2 [ TW.mt_4, TW.font_bold, TW.text_lg ] [ header "Westminster Shorter Catechism" ]
+        , listItem
+            [ Html.text
+                " The Westminster Shorter Catechism was completed in 1647 by the Westminster Assembly (the same body that wrote the Westminster Confession of Faith. It is part of the confessional standards of many Presbyterian churches"
+            ]
+        , listItem [ Html.text " ", newTabLink [] { label = Html.text "More resources", url = "https://www.monergism.com/topics/creeds-and-confessions/westminster-assembly/shorter-catechism" } ]
+        , listItem [ Html.text " ", newTabLink [] { label = Html.text "Buy a hard copy", url = "https://amzn.to/2JdHUa1" } ]
+        ]
+
+
+listItem : List (Html msg) -> Html msg
+listItem elems =
+    Html.div [ TW.pl_4 ] elems
+
+
+
+-- View Helpers
+
+
+loader : Html msg
+loader =
+    Html.div [ TW.h_screen, TW.w_screen, TW.flex, TW.text_center, TW.justify_center ] [ Html.text "Loading..." ]
+
+
+failure : Http.Error -> Html msg
+failure error =
+    Html.div
+        []
+        [ Html.div [] [ Html.text "Uh oh, something went wrong there. Try reloading the page..." ]
+        , Html.div []
+            [ Html.text <|
+                case error of
+                    Http.Timeout ->
+                        "Time out. Too slow!!"
+
+                    Http.BadUrl _ ->
+                        "Invalid Url. Woops!"
+
+                    Http.NetworkError ->
+                        "Something happened to the network connection!"
+
+                    Http.BadStatus resp ->
+                        String.fromInt resp.status.code ++ ": " ++ resp.status.message
+
+                    Http.BadPayload err _ ->
+                        err
+            ]
+        ]
+
+
+button : Msg -> String -> Html Msg
+button tagger text =
+    Html.div
+        [ E.onClick tagger
+        , TW.rounded
+        , TW.rounded_lg
+        , TW.m_2
+        , TW.bg_blue_500
+        , TW.hover_bg_blue_900
+        , TW.text_white
+        , TW.w_1over2
+        , TW.cursor_pointer
+        , TW.text_center
+        , TW.select_none
+        ]
+        [ Html.text text ]
+
+
+newTabLink : List (Html.Attribute msg) -> { url : String, label : Html msg } -> Html msg
+newTabLink attrs link =
+    Html.a ([ A.href link.url, TW.underline ] ++ attrs) [ link.label ]
+
+
+header : String -> Html msg
+header text =
+    Html.h1
+        [ TW.font_bold
+        , TW.text_xl
+        ]
+        [ Html.text text ]
+
+
+
+-- Helpers
 
 
 groupInto : Int -> List a -> List (List a)
@@ -405,124 +591,3 @@ groupIntoHelp num item new =
 
                 else
                     [ item ] :: last :: revRest
-
-
-catQ : Model -> ( Int, WSC.Question ) -> El.Element Msg
-catQ { toggles } ( num, { question, answer } ) =
-    let
-        toggleState =
-            Maybe.withDefault NoAnswer (Dict.get num toggles)
-
-        bg =
-            P.darkBlue
-    in
-    El.column
-        [ El.padding P.lg
-        , El.spacing P.lg
-        , El.width El.fill
-        , El.height El.fill
-        , Border.solid
-        , Border.width P.xxs
-        , Border.rounded P.xxs
-        , Border.color P.lightBlue
-        , Background.color bg
-        , Font.color P.white
-        ]
-        [ El.row
-            [ Region.heading 1
-            , El.width El.fill
-            , El.width El.fill
-            , Font.variant Font.ligatures
-            , Font.size P.xxl
-            , Font.bold
-            , Font.underline
-            ]
-            [ El.text <| "Q" ++ String.fromInt num ]
-        , El.row
-            [ El.width El.fill
-            , El.spacingXY 0 P.lg
-            ]
-            [ El.paragraph [ Font.alignLeft, Font.italic, El.spacing P.sm ] [ El.text question ] ]
-        , El.row
-            [ El.width El.fill
-            , El.spacingXY 0 P.lg
-            ]
-            [ El.paragraph [ Font.justify ] (answerView bg toggleState answer) ]
-        , El.row
-            [ El.width El.fill
-            , El.alignBottom
-            , El.spacing P.sm
-            ]
-          <|
-            case toggleState of
-                NoAnswer ->
-                    [ button (ShowLetters num) "Letters Only"
-                    , button (ShowFullAnswer num) "Full Answer"
-                    ]
-
-                JustLetters ->
-                    [ button (HideLetters num) "Hide"
-                    , button (ShowFullAnswer num) "Full Answer"
-                    ]
-
-                FullAnswer ->
-                    [ button (ShowLetters num) "Letters Only"
-                    , button (HideFullAnswer num) "Hide Answer"
-                    ]
-        ]
-
-
-button : Msg -> String -> El.Element Msg
-button tagger text =
-    Input.button
-        [ El.width El.fill
-        , El.padding P.xs
-        , Background.color P.blue
-        , Border.rounded P.xs
-        , El.pointer
-        , El.htmlAttribute <| Html.Attributes.style "user-select" "none"
-        , El.focused
-            [ Border.color P.blue
-            ]
-        ]
-        { onPress = Just tagger
-        , label = El.el [ El.centerX ] <| El.text text
-        }
-
-
-answerView : El.Color -> ToggleState -> String -> List (El.Element msg)
-answerView bg toggleState answer =
-    case toggleState of
-        NoAnswer ->
-            [ El.el [ Font.color bg ] <| El.text answer ]
-
-        JustLetters ->
-            answerViewHelp { first = P.white, rest = bg } answer
-
-        FullAnswer ->
-            answerViewHelp { first = P.white, rest = P.white } answer
-
-
-answerViewHelp : { first : El.Color, rest : El.Color } -> String -> List (El.Element msg)
-answerViewHelp colours answer =
-    answer
-        |> String.split " "
-        |> List.map splitWords
-        |> List.concatMap (wordView colours)
-
-
-splitWords : String -> ( String, String )
-splitWords str =
-    ( String.left 1 str, String.dropLeft 1 str ++ " " )
-
-
-wordView : { first : El.Color, rest : El.Color } -> ( String, String ) -> List (El.Element msg)
-wordView colours ( letter, rest ) =
-    [ El.el [ Font.color colours.first ] (El.text letter)
-    , El.el [ Font.color colours.rest ] (El.text rest)
-    ]
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Browser.Events.onResize WindowResize

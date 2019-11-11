@@ -3,7 +3,7 @@
 
 [Build]
   Publish = "dist/"
-  Command = "yarn prod && yarn sw"
+  Command = "make build"
   Functions = ""
 
 [[redirects]]

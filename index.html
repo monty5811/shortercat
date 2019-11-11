@@ -5,15 +5,15 @@
   <meta name="theme-color" content="#138FA1">
   <meta name="description" content="Westminster Shorter Catechism App">
   <meta name="keywords" content="app,shorter catechism,westminster,reformed">
-  <link rel="manifest" href="/src/manifest.webmanifest">
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preload" href="https://fonts.googleapis.com/css?family=Montserrat" rel="stylesheet" as="font">
-  <link rel="apple-touch-icon" sizes="180x180" href="/src/icons/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="/src/icons/icon32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/src/icons/icon16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon16.png">
 
   <meta property="og:title" content="Shorter Catechism App">
   <meta property="og:description" content="Westminster Shorter Catechism App">
-  <meta property="og:image" content="/src/icons/icon512.png">
+  <meta property="og:image" content="/icons/icon512.png">
   <meta property="og:url" content="https://shortercatechism.app">
   <meta name="twitter:card" content="summary">
 
@@ -22,7 +22,7 @@
   <meta name="twitter:site" content="@ShorterCatApp">
 
   <title>Westminster Shorter Catechism</title>
-  <link rel="stylesheet" href="./src/main.css">
+  <link rel="stylesheet" href="/main.css">
 </head>
 <body>
   <div id="elm">
@@ -30,7 +30,10 @@
     I'm afraid we need javaScript to run...
   </noscript>
   </div>
-  <script src="./src/index.js"></script>
+  <script src="/elm.min.js"></script>
+  <script>
+    var app = Elm.Main.init({node: document.getElementById("elm")});
+  </script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js')

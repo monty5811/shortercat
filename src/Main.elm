@@ -214,7 +214,7 @@ body model =
         , TW.font_sans
         ]
       <|
-        [ Html.div []
+        [ Html.div [ TW.flex, TW.flex_col, TW.min_h_screen ]
             [ navbar model
             , case mainView model of
                 RD.NotAsked ->
@@ -228,9 +228,37 @@ body model =
 
                 RD.Success content ->
                     content
+            , footer model
             ]
         ]
     ]
+
+
+footer : Model -> Html msg
+footer { layout } =
+    case layout of
+        Extension ->
+            Html.text ""
+
+        Browser ->
+            Html.footer
+                [ TW.bg_blue_600
+                , TW.h_24
+                , TW.flex
+                , TW.flex_col
+                , TW.text_center
+                , TW.text_white
+                , TW.italic
+                , TW.justify_center
+                , TW.w_full
+                ]
+                [ Html.text "Provided by "
+                , Html.a
+                    [ A.href "https://yetanothersermon.host/?utm_source=shortercatapp"
+                    , TW.hover_underline
+                    ]
+                    [ Html.text "Yet Another Sermon Host" ]
+                ]
 
 
 navbar : Model -> Html Msg
@@ -322,6 +350,7 @@ qaListHelp { maybeSelectedNum, selectRaw, toggles, catechism } =
         [ TW.mx_auto
         , TW.container
         , TW.px_4
+        , TW.flex_grow
         ]
         [ Html.div []
             [ selectQ catechism selectRaw

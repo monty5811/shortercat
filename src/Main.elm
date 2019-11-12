@@ -271,7 +271,12 @@ navbar { layout, route } =
             Html.div [ TW.font_semibold, TW.bg_white, TW.shadow, TW.w_full, TW.md_px_8, TW.mb_8 ]
                 [ Html.nav [ TW.relative, TW.flex, TW.flex_wrap, TW.items_center, TW.justify_between, TW.md_py_4, TW.h_16, TW.px_2 ]
                     [ Html.div [] [ Html.text <| Route.toTitle route ]
-                    , Html.a [ A.href <| fromRoute layout About ] [ Html.text "About" ]
+                    , case route of
+                        About ->
+                            Html.a [ TW.font_mono, A.href <| fromRoute layout <| WSC Nothing ] [ Html.text "Go Back" ]
+
+                        _ ->
+                            Html.a [ A.href <| fromRoute layout About ] [ Html.text "About" ]
                     ]
                 ]
 
@@ -306,7 +311,7 @@ mainView model =
 
 selectQ : Catechism -> String -> Html Msg
 selectQ catechism selectRaw =
-    Html.label [ TW.block, TW.mx_auto, TW.w_3over5, TW.mb_12 ]
+    Html.label [ TW.block, TW.mx_auto, TW.w_full, TW.md_w_3over5, TW.mb_12 ]
         [ Html.span [ TW.font_medium, TW.text_lg, TW.text_gray_800, TW.hidden ] [ Html.text "Select a question" ]
         , Html.input
             [ E.onInput SelectTextUpdated
@@ -507,28 +512,38 @@ about model =
         , TW.leading_normal
         , TW.mx_auto
         , TW.m_32
+        , TW.flex
+        , TW.flex_col
+        , TW.flex_grow
         ]
-        [ Html.a [ TW.font_mono, A.href <| fromRoute model.layout <| WSC Nothing ] [ Html.text "Go Back" ]
-        , Html.h2 [ TW.mt_4, TW.font_bold, TW.text_lg ] [ header "This app" ]
-        , listItem [ Html.text " Simple" ]
-        , listItem [ Html.text " Fast" ]
-        , listItem [ Html.text " Works Offline" ]
-        , listItem [ Html.text " Mobile friendly" ]
-        , listItem [ Html.text " ", newTabLink [] { label = Html.text "Open Source", url = "https://github.com/monty5811/shortercat" } ]
-        , listItem [ Html.text " ", newTabLink [] { label = Html.text "Twitter", url = "https://twitter.com/ShorterCatApp" } ]
-        , Html.h2 [ TW.mt_4, TW.font_bold, TW.text_lg ] [ header "Westminster Shorter Catechism" ]
-        , listItem
-            [ Html.text
-                " The Westminster Shorter Catechism was completed in 1647 by the Westminster Assembly (the same body that wrote the Westminster Confession of Faith. It is part of the confessional standards of many Presbyterian churches"
+        [ Html.div []
+            [ Html.h2 [ TW.mt_4, TW.font_bold, TW.text_lg ] [ header "This app" ]
+            , Html.ul [ TW.pl_6, TW.list_disc ]
+                [ listItem [ Html.text " Simple" ]
+                , listItem [ Html.text " Fast" ]
+                , listItem [ Html.text " Works Offline" ]
+                , listItem [ Html.text " Mobile friendly" ]
+                , listItem [ Html.text " ", newTabLink [] { label = Html.text "Open Source", url = "https://github.com/monty5811/shortercat" } ]
+                , listItem [ Html.text " ", newTabLink [] { label = Html.text "Twitter", url = "https://twitter.com/ShorterCatApp" } ]
+                ]
             ]
-        , listItem [ Html.text " ", newTabLink [] { label = Html.text "More resources", url = "https://www.monergism.com/topics/creeds-and-confessions/westminster-assembly/shorter-catechism" } ]
-        , listItem [ Html.text " ", newTabLink [] { label = Html.text "Buy a hard copy", url = "https://amzn.to/2JdHUa1" } ]
+        , Html.div []
+            [ Html.h2 [ TW.mt_8, TW.font_bold, TW.text_lg ] [ header "Westminster Shorter Catechism" ]
+            , Html.ul [ TW.pl_6, TW.list_disc ]
+                [ listItem
+                    [ Html.text
+                        " The Westminster Shorter Catechism was completed in 1647 by the Westminster Assembly (the same body that wrote the Westminster Confession of Faith. It is part of the confessional standards of many Presbyterian churches"
+                    ]
+                , listItem [ Html.text " ", newTabLink [] { label = Html.text "More resources", url = "https://www.monergism.com/topics/creeds-and-confessions/westminster-assembly/shorter-catechism" } ]
+                , listItem [ Html.text " ", newTabLink [] { label = Html.text "Buy a hard copy", url = "https://amzn.to/2JdHUa1" } ]
+                ]
+            ]
         ]
 
 
 listItem : List (Html msg) -> Html msg
 listItem elems =
-    Html.div [ TW.pl_4 ] elems
+    Html.li [] elems
 
 
 
@@ -586,7 +601,7 @@ button tagger text =
 
 newTabLink : List (Html.Attribute msg) -> { url : String, label : Html msg } -> Html msg
 newTabLink attrs link =
-    Html.a ([ A.href link.url, TW.underline ] ++ attrs) [ link.label ]
+    Html.a ([ A.href link.url, TW.underline, A.rel "noopener", A.target "_blank" ] ++ attrs) [ link.label ]
 
 
 header : String -> Html msg
